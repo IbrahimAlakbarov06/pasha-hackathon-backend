@@ -5,6 +5,7 @@ import com.bravo.brain.service.ProductService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
@@ -54,8 +55,9 @@ public class ProductController {
     // GET /api/products/barcode/{barcode} — scan endpoint
     @GetMapping("/barcode/{barcode}")
     public ResponseEntity<ProductDto.ProductResponse> getByBarcode(
-            @PathVariable String barcode) {
-        return ResponseEntity.ok(productService.getByBarcode(barcode));
+            @PathVariable String barcode,
+            @AuthenticationPrincipal String userId) {
+        return ResponseEntity.ok(productService.getByBarcode(barcode, userId));
     }
 
     // GET /api/products/{id}/barcode-label — çap üçün

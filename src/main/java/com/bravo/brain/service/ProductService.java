@@ -4,6 +4,7 @@ import com.bravo.brain.domain.entity.*;
 import com.bravo.brain.domain.repository.*;
 import com.bravo.brain.model.dto.ProductDto;
 import com.bravo.brain.model.enums.BatchStatus;
+import com.bravo.brain.model.enums.Role;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,6 +23,7 @@ public class ProductService {
     private final WasteLogRepository wasteRepo;
     private final DepartmentRepository departmentRepo;
     private final NotificationService notificationService;
+    private final UserRepository userRepository;
 
     // ── YENİ MƏHSUL YARAT ─────────────────────────────────
     public ProductDto.ProductResponse createProduct(ProductDto.CreateRequest req) {
@@ -56,9 +58,26 @@ public class ProductService {
     }
 
     // ── BARKODLA MƏHSUL GƏTİR — scan endpoint ─────────────
-    public ProductDto.ProductResponse getByBarcode(String barcode) {
+    public ProductDto.ProductResponse getByBarcode(String barcode, String userId) {
         Product product = productRepo.findByBarcode(barcode)
                 .orElseThrow(() -> new RuntimeException("Məhsul tapılmadı: " + barcode));
+
+        // SUPER_ADMIN və REGIONAL_MANAGER üçün yoxlama yoxdur
+        User user = userRepository.findByUserId(userId)
+                .orElseThrow(() -> new RuntimeException("İstifadəçi tapılmadı"));
+
+        if (user.getRole() == Role.DEPARTMENT_HEAD) {
+            Long userDeptId = user.getDepartment() != null
+                    ? user.getDepartment().getId() : null;
+            Long productDeptId = product.getDepartment().getId();
+
+            if (!productDeptId.equals(userDeptId)) {
+                throw new RuntimeException(
+                        "Bu məhsul sizin şöbənizə aid deyil: " + product.getName()
+                );
+            }
+        }
+
         return toResponse(product);
     }
 

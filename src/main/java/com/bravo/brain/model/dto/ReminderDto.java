@@ -14,11 +14,13 @@ public class ReminderDto {
         private String productName;
         private String departmentName;
         private String storeName;
-        private Double quantity;
+        private Double quantity;          // "2 units remaining" üçün
+        private String unit;              // "ədəd" / "kq"
         private LocalDate deliveryDate;
         private LocalDate removalDate;
-        private int daysLeft;           // neçə gün qalıb
-        private String urgency;         // "CRITICAL" (1 gün) / "WARNING" (2 gün)
+        private int daysLeft;
+        private String urgency;           // "CRITICAL" / "WARNING" / "LOW_STOCK"
+        private String urgencyLabel;      // "Expiring" / "Low Stock" / "Action Req"
         private boolean notified2Day;
         private boolean notified1Day;
     }

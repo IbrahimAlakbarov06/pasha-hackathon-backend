@@ -103,7 +103,17 @@ public class ReminderService {
 
     // ── ENTITY → DTO ──────────────────────────────────────
     private ReminderResponse toReminderResponse(ProductBatch batch) {
-        int daysLeft = (int) ChronoUnit.DAYS.between(LocalDate.now(), batch.getRemovalDate());
+        int daysLeft = (int) ChronoUnit.DAYS.between(
+                LocalDate.now(), batch.getRemovalDate());
+
+        String urgency = daysLeft <= 0 ? "CRITICAL"
+                : daysLeft <= 1       ? "CRITICAL"
+                  : "WARNING";
+
+        String urgencyLabel = daysLeft <= 0 ? "Expiring"
+                : daysLeft <= 1       ? "Expiring"
+                  : "Action Req";
+
         return new ReminderResponse(
                 batch.getId(),
                 batch.getBatchCode(),
@@ -111,10 +121,12 @@ public class ReminderService {
                 batch.getProduct().getDepartment().getName(),
                 batch.getProduct().getDepartment().getStoreName(),
                 batch.getQuantity(),
+                batch.getProduct().getUnit(),      // əlavə
                 batch.getDeliveryDate(),
                 batch.getRemovalDate(),
                 daysLeft,
-                daysLeft <= 1 ? "CRITICAL" : "WARNING",
+                urgency,
+                urgencyLabel,                      // əlavə
                 batch.isNotified2Day(),
                 batch.isNotified1Day()
         );

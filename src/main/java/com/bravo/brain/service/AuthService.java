@@ -48,12 +48,16 @@ public class AuthService {
             allDepartments = true;
         }
 
+        String filial = user.getDepartment() != null
+                ? user.getDepartment().getStoreName()
+                : user.getFilial();
+
         return new AuthDto.LoginResponse(
                 token,
                 86400L,
                 user.getRole().name(),
                 displayName,
-                user.getFilial(),
+                filial,
                 departmentId,
                 departmentName,
                 allDepartments
