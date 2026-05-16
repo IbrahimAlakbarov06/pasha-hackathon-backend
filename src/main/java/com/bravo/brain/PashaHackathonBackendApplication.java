@@ -1,4 +1,4 @@
-package com.example.pashahackathonbackend;
+package com.bravo.brain;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
