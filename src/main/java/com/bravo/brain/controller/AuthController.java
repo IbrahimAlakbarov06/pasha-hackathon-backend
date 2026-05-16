@@ -15,9 +15,10 @@ public class AuthController {
 
     private final AuthService authService;
 
-    // POST /api/auth/login
+    // POST /api/auth/login — frontend bu endpoint-i çağırır
     @PostMapping("/login")
-    public ResponseEntity<AuthDto.LoginResponse> login(@Valid @RequestBody AuthDto.LoginRequest req) {
+    public ResponseEntity<AuthDto.LoginResponse> login(
+            @Valid @RequestBody AuthDto.LoginRequest req) {
         return ResponseEntity.ok(authService.login(req));
     }
 

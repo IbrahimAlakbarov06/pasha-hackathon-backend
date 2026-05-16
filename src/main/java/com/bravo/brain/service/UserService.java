@@ -7,8 +7,10 @@ import com.bravo.brain.model.enums.Role;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Random;
 import java.util.stream.Collectors;
 
 @Service
@@ -19,119 +21,128 @@ public class UserService {
     private final PasswordEncoder encoder;
 
     // ── USER YARAT ─────────────────────────────────────────
-    public UserDto.CreateResponse createUser(UserDto.CreateRequest req) {
+    @Transactional
+    public UserDto.UserResponse createUser(UserDto.CreateRequest req) {
         if (repo.existsByEmail(req.getEmail()))
             throw new RuntimeException("Bu email artıq istifadə olunur");
 
-        validateRoleFields(req);
-
-        String userId = generateUserId(req.getRole());
-        String tempPassword = generateTempPassword();
+        Role role = mapRole(req.getRole());
+        String userId = generateUserId(role);
 
         User user = User.builder()
                 .userId(userId)
-                .fullName(req.getFullName())
+                .firstName(req.getFirstName())
+                .lastName(req.getLastName())
                 .email(req.getEmail())
-                .password(encoder.encode(tempPassword))
-                .role(req.getRole())
-                .region(req.getRegion())
-                .storeName(req.getStoreName())
-                .departmentName(req.getDepartmentName())
+                .password(encoder.encode(req.getPassword()))
+                .role(role)
+                .filial(req.getFilial())
+                .categories(req.getCategories() != null ? req.getCategories() : new ArrayList<>())
                 .active(true)
                 .firstLogin(true)
                 .build();
 
-        repo.save(user);
-
-        return new UserDto.CreateResponse(
-                userId, tempPassword, req.getFullName(),
-                req.getRole(), req.getRegion(),
-                req.getStoreName(), req.getDepartmentName()
-        );
+        return toResponse(repo.save(user));
     }
 
-    // ── BÜTÜN USERLƏR ──────────────────────────────────────
-    public List<UserDto.UserResponse> getAllUsers() {
-        return repo.findAll().stream()
+    // ── BÜTÜN USERLƏR (activeOnly filter ilə) ─────────────
+    public List<UserDto.UserResponse> getAllUsers(boolean activeOnly) {
+        List<User> users = activeOnly ? repo.findByActiveTrue() : repo.findAll();
+        return users.stream()
+                .filter(u -> u.getRole() != Role.SUPER_ADMIN)  // SUPER_ADMIN-i göstərmə
                 .map(this::toResponse)
                 .collect(Collectors.toList());
     }
 
-    // ── ROL ÜZRƏ ──────────────────────────────────────────
-    public List<UserDto.UserResponse> getUsersByRole(Role role) {
-        return repo.findByRole(role).stream()
-                .map(this::toResponse)
-                .collect(Collectors.toList());
-    }
+    // ── USER YENİLƏ ────────────────────────────────────────
+    @Transactional
+    public UserDto.UserResponse updateUser(String userId, UserDto.UpdateRequest req) {
+        User user = repo.findByUserId(userId)
+                .orElseThrow(() -> new RuntimeException("İstifadəçi tapılmadı: " + userId));
 
-    // ── USER REDAKTƏ ───────────────────────────────────────
-    public UserDto.UserResponse updateUser(Long id, UserDto.UpdateRequest req) {
-        User user = repo.findById(id)
-                .orElseThrow(() -> new RuntimeException("User tapılmadı"));
-
-        if (req.getFullName() != null) user.setFullName(req.getFullName());
-        if (req.getRegion() != null) user.setRegion(req.getRegion());
-        if (req.getStoreName() != null) user.setStoreName(req.getStoreName());
-        if (req.getDepartmentName() != null) user.setDepartmentName(req.getDepartmentName());
-        if (req.getActive() != null) user.setActive(req.getActive());
+        if (req.getFirstName() != null && !req.getFirstName().isBlank())
+            user.setFirstName(req.getFirstName());
+        if (req.getLastName() != null && !req.getLastName().isBlank())
+            user.setLastName(req.getLastName());
+        if (req.getEmail() != null && !req.getEmail().isBlank()) {
+            if (!req.getEmail().equals(user.getEmail()) && repo.existsByEmail(req.getEmail()))
+                throw new RuntimeException("Bu email artıq istifadə olunur");
+            user.setEmail(req.getEmail());
+        }
+        if (req.getFilial() != null)
+            user.setFilial(req.getFilial());
+        if (req.getRole() != null)
+            user.setRole(mapRole(req.getRole()));
+        if (req.getCategories() != null)
+            user.setCategories(req.getCategories());
+        if (req.getNewPassword() != null && req.getNewPassword().length() >= 8) {
+            if (req.getNewPassword().length() > 72)
+                throw new RuntimeException("Şifrə 72 simvoldan çox ola bilməz");
+            user.setPassword(encoder.encode(req.getNewPassword()));
+        }
 
         return toResponse(repo.save(user));
     }
 
     // ── DEAKTİV ET ────────────────────────────────────────
-    public void deactivateUser(Long id) {
-        User user = repo.findById(id)
-                .orElseThrow(() -> new RuntimeException("User tapılmadı"));
+    @Transactional
+    public void deactivateUser(String userId) {
+        User user = repo.findByUserId(userId)
+                .orElseThrow(() -> new RuntimeException("İstifadəçi tapılmadı: " + userId));
+        if (user.getRole() == Role.SUPER_ADMIN)
+            throw new RuntimeException("Super Admin deaktiv edilə bilməz");
         user.setActive(false);
         repo.save(user);
     }
 
+    // ── ROL ÇEVIRMƏ — frontend string → enum ──────────────
+    private Role mapRole(String roleStr) {
+        if (roleStr == null) return Role.REGIONAL_MANAGER;
+        return switch (roleStr.toUpperCase()) {
+            case "ADMIN"          -> Role.REGIONAL_MANAGER;
+            case "MANAGER"        -> Role.DEPARTMENT_HEAD;
+            case "SUPER_ADMIN"    -> Role.SUPER_ADMIN;
+            case "REGIONAL_MANAGER" -> Role.REGIONAL_MANAGER;
+            case "DEPARTMENT_HEAD"  -> Role.DEPARTMENT_HEAD;
+            default -> Role.DEPARTMENT_HEAD;
+        };
+    }
+
+    // ── ROL ÇEVIRMƏ — enum → frontend string ──────────────
+    private String mapRoleToFrontend(Role role) {
+        return switch (role) {
+            case SUPER_ADMIN      -> "SUPER_ADMIN";
+            case REGIONAL_MANAGER -> "ADMIN";
+            case DEPARTMENT_HEAD  -> "MANAGER";
+        };
+    }
+
     // ── USER ID GENERASIYA ─────────────────────────────────
-    // Format: FG-RM-001 (Regional Manager), FG-DH-012 (Department Head)
     private String generateUserId(Role role) {
         String prefix = switch (role) {
-            case SUPER_ADMIN -> "FG-SA";
+            case SUPER_ADMIN      -> "FG-SA";
             case REGIONAL_MANAGER -> "FG-RM";
-            case DEPARTMENT_HEAD -> "FG-DH";
+            case DEPARTMENT_HEAD  -> "FG-DH";
         };
-        String candidate;
         int counter = 1;
+        String candidate;
         do {
             candidate = String.format("%s-%03d", prefix, counter++);
         } while (repo.existsByUserId(candidate));
         return candidate;
     }
 
-    // ── TEMP ŞİFRƏ ────────────────────────────────────────
-    private String generateTempPassword() {
-        String chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
-        StringBuilder sb = new StringBuilder();
-        Random random = new Random();
-        for (int i = 0; i < 8; i++) {
-            sb.append(chars.charAt(random.nextInt(chars.length())));
-        }
-        return sb.toString();
-    }
-
-    // ── ROLE VALİDASİYA ────────────────────────────────────
-    private void validateRoleFields(UserDto.CreateRequest req) {
-        if (req.getRole() == Role.REGIONAL_MANAGER && (req.getRegion() == null || req.getRegion().isBlank()))
-            throw new RuntimeException("Reyon meneceri üçün region məcburidir");
-        if (req.getRole() == Role.DEPARTMENT_HEAD) {
-            if (req.getStoreName() == null || req.getStoreName().isBlank())
-                throw new RuntimeException("Şöbə rəhbəri üçün mağaza adı məcburidir");
-            if (req.getDepartmentName() == null || req.getDepartmentName().isBlank())
-                throw new RuntimeException("Şöbə rəhbəri üçün şöbə adı məcburidir");
-        }
-    }
-
     // ── ENTITY → DTO ──────────────────────────────────────
     private UserDto.UserResponse toResponse(User u) {
         return new UserDto.UserResponse(
-                u.getId(), u.getUserId(), u.getFullName(), u.getEmail(),
-                u.getRole(), u.getRegion(), u.getStoreName(),
-                u.getDepartmentName(), u.isActive(),
-                u.getCreatedAt(), u.getLastLoginAt()
+                u.getUserId(),
+                u.getFirstName(),
+                u.getLastName(),
+                u.getEmail(),
+                u.getFilial(),
+                mapRoleToFrontend(u.getRole()),
+                u.getCategories() != null ? u.getCategories() : new ArrayList<>(),
+                u.isActive()
         );
     }
 }

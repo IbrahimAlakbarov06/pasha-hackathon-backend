@@ -4,6 +4,8 @@ import com.bravo.brain.model.enums.Role;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "users")
@@ -15,29 +17,36 @@ public class User {
     private Long id;
 
     @Column(unique = true, nullable = false)
-    private String userId;          // avtomatik generasiya — FG-RM-001, FG-DH-012
+    private String userId;
 
     @Column(nullable = false)
-    private String fullName;
+    private String firstName;
+
+    @Column(nullable = false)
+    private String lastName;
 
     @Column(unique = true, nullable = false)
     private String email;
 
     @Column(nullable = false)
-    private String password;        // bcrypt hash
+    private String password;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private Role role;
 
-    private String region;          // REGIONAL_MANAGER üçün — Bakı, Sumqayıt, Gəncə
-    private String storeName;       // DEPARTMENT_HEAD üçün — hansı mağaza
-    private String departmentName;  // DEPARTMENT_HEAD üçün — hansı şöbə
+    private String filial;          // frontend-dən gələn filial/region
+
+    @ElementCollection
+    @CollectionTable(name = "user_categories", joinColumns = @JoinColumn(name = "user_id"))
+    @Column(name = "category")
+    @Builder.Default
+    private List<String> categories = new ArrayList<>();
 
     @Column(nullable = false)
     private boolean active = true;
 
-    private boolean firstLogin = true;  // ilk girişdə şifrə dəyişdirilməlidir
+    private boolean firstLogin = true;
 
     private LocalDateTime createdAt;
     private LocalDateTime lastLoginAt;

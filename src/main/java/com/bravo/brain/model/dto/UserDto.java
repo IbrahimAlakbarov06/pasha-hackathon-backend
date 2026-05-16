@@ -3,62 +3,57 @@ package com.bravo.brain.model.dto;
 import com.bravo.brain.model.enums.Role;
 import jakarta.validation.constraints.*;
 import lombok.*;
-import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 public class UserDto {
 
-    // ── USER YARAT (Super Admin) ───────────────────────────
+    // ── USER YARAT — frontend POST /api/admin/users ────────
     @Getter @Setter
     public static class CreateRequest {
-        @NotBlank(message = "Ad soyad boş ola bilməz")
-        private String fullName;
+        @NotBlank(message = "Ad boş ola bilməz")
+        private String firstName;
 
-        @NotBlank @Email(message = "Email düzgün deyil")
+        @NotBlank(message = "Soyad boş ola bilməz")
+        private String lastName;
+
+        @NotBlank(message = "Email boş ola bilməz")
+        @Email(message = "Email düzgün formatda deyil")
         private String email;
 
-        @NotNull(message = "Rol seçilməlidir")
-        private Role role;
+        @NotBlank(message = "Şifrə boş ola bilməz")
+        @Size(min = 8, message = "Şifrə minimum 8 simvol olmalıdır")
+        private String password;
 
-        private String region;          // REGIONAL_MANAGER üçün məcburi
-        private String storeName;       // DEPARTMENT_HEAD üçün məcburi
-        private String departmentName;  // DEPARTMENT_HEAD üçün məcburi
+        private String filial;          // frontend-dən "Bravo Koroğlu" kimi gəlir
+
+        private String role;            // "MANAGER" və ya "ADMIN" — string kimi gəlir
+
+        private List<String> categories = new ArrayList<>();
     }
 
-    // ── USER YARAT CAVABI ──────────────────────────────────
-    @Getter @Setter @AllArgsConstructor
-    public static class CreateResponse {
-        private String userId;          // avtomatik generasiya
-        private String tempPassword;    // super admin-ə göstərilir, user ilk girişdə dəyişir
-        private String fullName;
-        private Role role;
-        private String region;
-        private String storeName;
-        private String departmentName;
-    }
-
-    // ── USER REDAKTƏ ───────────────────────────────────────
-    @Getter @Setter
-    public static class UpdateRequest {
-        private String fullName;
-        private String region;
-        private String storeName;
-        private String departmentName;
-        private Boolean active;
-    }
-
-    // ── USER CAVABI ────────────────────────────────────────
+    // ── USER CAVABI — frontend UserRow tipinə uyğun ────────
     @Getter @Setter @AllArgsConstructor
     public static class UserResponse {
-        private Long id;
         private String userId;
-        private String fullName;
+        private String firstName;
+        private String lastName;
         private String email;
-        private Role role;
-        private String region;
-        private String storeName;
-        private String departmentName;
+        private String filial;
+        private String role;
+        private List<String> categories;
         private boolean active;
-        private LocalDateTime createdAt;
-        private LocalDateTime lastLoginAt;
+    }
+
+    // ── USER YENİLƏ — frontend PUT /api/admin/users/{id} ───
+    @Getter @Setter
+    public static class UpdateRequest {
+        private String firstName;
+        private String lastName;
+        private String email;
+        private String filial;
+        private String role;
+        private String newPassword;     // boş olarsa dəyişdirilmir
+        private List<String> categories = new ArrayList<>();
     }
 }

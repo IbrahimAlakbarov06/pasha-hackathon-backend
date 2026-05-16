@@ -1,12 +1,14 @@
 package com.bravo.brain.model.dto;
 
-import com.bravo.brain.model.enums.Role;
-import jakarta.validation.constraints.*;
-import lombok.*;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.Setter;
 
 public class AuthDto {
 
-    // ── LOGIN ──────────────────────────────────────────────
+    // ── LOGIN REQUEST ──────────────────────────────────────
     @Getter @Setter
     public static class LoginRequest {
         @NotBlank(message = "User ID boş ola bilməz")
@@ -16,19 +18,17 @@ public class AuthDto {
         private String password;
     }
 
+    // ── LOGIN RESPONSE — frontend LoginResponse tipinə uyğun
+    // Frontend gözləyir: { accessToken, expiresInSeconds, role, displayName }
     @Getter @Setter @AllArgsConstructor
     public static class LoginResponse {
-        private String token;
-        private String userId;
-        private String fullName;
-        private Role role;
-        private String region;
-        private String storeName;
-        private String departmentName;
-        private boolean firstLogin;
+        private String accessToken;
+        private long expiresInSeconds;
+        private String role;
+        private String displayName;
     }
 
-    // ── ŞİFRƏ DƏYİŞ ───────────────────────────────────────
+    // ── ŞİFRƏ DƏYİŞDİRMƏ ─────────────────────────────────
     @Getter @Setter
     public static class ChangePasswordRequest {
         @NotBlank

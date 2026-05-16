@@ -7,6 +7,7 @@ import com.bravo.brain.security.JwtUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+
 import java.time.LocalDateTime;
 
 @Service
@@ -20,7 +21,7 @@ public class AuthService {
     // ── LOGIN ──────────────────────────────────────────────
     public AuthDto.LoginResponse login(AuthDto.LoginRequest req) {
         User user = repo.findByUserId(req.getUserId())
-                .orElseThrow(() -> new RuntimeException("User tapılmadı"));
+                .orElseThrow(() -> new RuntimeException("İstifadəçi tapılmadı"));
 
         if (!user.isActive())
             throw new RuntimeException("Hesab deaktivdir. Admin ilə əlaqə saxlayın.");
@@ -32,23 +33,21 @@ public class AuthService {
         repo.save(user);
 
         String token = jwtUtil.generateToken(user.getUserId(), user.getRole().name());
+        String displayName = user.getFirstName() + " " + user.getLastName();
 
+        // Frontend gözləyir: { accessToken, expiresInSeconds, role, displayName }
         return new AuthDto.LoginResponse(
                 token,
-                user.getUserId(),
-                user.getFullName(),
-                user.getRole(),
-                user.getRegion(),
-                user.getStoreName(),
-                user.getDepartmentName(),
-                user.isFirstLogin()
+                86400L,      // 24 saat saniyə ilə
+                user.getRole().name(),
+                displayName
         );
     }
 
     // ── ŞİFRƏ DƏYİŞ ───────────────────────────────────────
     public void changePassword(String userId, AuthDto.ChangePasswordRequest req) {
         User user = repo.findByUserId(userId)
-                .orElseThrow(() -> new RuntimeException("User tapılmadı"));
+                .orElseThrow(() -> new RuntimeException("İstifadəçi tapılmadı"));
 
         if (!encoder.matches(req.getOldPassword(), user.getPassword()))
             throw new RuntimeException("Köhnə şifrə yanlışdır");
