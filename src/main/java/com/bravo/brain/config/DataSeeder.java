@@ -38,7 +38,6 @@ public class DataSeeder implements ApplicationRunner {
                 .password(passwordEncoder.encode("SuperAdmin!2026"))
                 .role(Role.SUPER_ADMIN)
                 .filial("Mərkəz")
-                .categories(new ArrayList<>())
                 .active(true)
                 .firstLogin(false)
                 .build();

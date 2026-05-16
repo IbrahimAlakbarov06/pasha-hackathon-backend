@@ -8,7 +8,6 @@ import com.bravo.brain.security.JwtUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-
 import java.time.LocalDateTime;
 
 @Service
@@ -35,17 +34,16 @@ public class AuthService {
         String token = jwtUtil.generateToken(user.getUserId(), user.getRole().name());
         String displayName = user.getFirstName() + " " + user.getLastName();
 
-        // REGIONAL_MANAGER (Admin) - yalniz oz sobesine catisi var, department doldurulur
-        // DEPARTMENT_HEAD (Mudir)  - butun sobelere catisi var, department = null, allDepartments = true
-        // SUPER_ADMIN              - her seye catisi var
-        String department = null;
+        String departmentName = null;
+        Long departmentId = null;
         boolean allDepartments;
 
         if (user.getRole() == Role.REGIONAL_MANAGER) {
             allDepartments = false;
-            department = (user.getCategories() != null && !user.getCategories().isEmpty())
-                    ? user.getCategories().get(0)
-                    : null;
+            if (user.getDepartment() != null) {
+                departmentId = user.getDepartment().getId();
+                departmentName = user.getDepartment().getName();
+            }
         } else {
             allDepartments = true;
         }
@@ -56,7 +54,8 @@ public class AuthService {
                 user.getRole().name(),
                 displayName,
                 user.getFilial(),
-                department,
+                departmentId,
+                departmentName,
                 allDepartments
         );
     }

@@ -1,6 +1,8 @@
 package com.bravo.brain.service;
 
+import com.bravo.brain.domain.entity.Department;
 import com.bravo.brain.domain.entity.User;
+import com.bravo.brain.domain.repository.DepartmentRepository;
 import com.bravo.brain.domain.repository.UserRepository;
 import com.bravo.brain.model.dto.UserDto;
 import com.bravo.brain.model.enums.Role;
@@ -19,12 +21,19 @@ public class UserService {
 
     private final UserRepository repo;
     private final PasswordEncoder encoder;
+    private final DepartmentRepository departmentRepository;
 
     // ── USER YARAT ─────────────────────────────────────────
     @Transactional
     public UserDto.UserResponse createUser(UserDto.CreateRequest req) {
         if (repo.existsByEmail(req.getEmail()))
             throw new RuntimeException("Bu email artıq istifadə olunur");
+
+        Department department = null;
+        if (req.getDepartmentId() != null) {
+            department = departmentRepository.findById(req.getDepartmentId())
+                    .orElseThrow(() -> new RuntimeException("Şöbə tapılmadı"));
+        }
 
         Role role = mapRole(req.getRole());
         String userId = generateUserId(role);
@@ -37,7 +46,7 @@ public class UserService {
                 .password(encoder.encode(req.getPassword()))
                 .role(role)
                 .filial(req.getFilial())
-                .categories(req.getCategories() != null ? req.getCategories() : new ArrayList<>())
+                .department(department)
                 .active(true)
                 .firstLogin(true)
                 .build();
@@ -73,8 +82,6 @@ public class UserService {
             user.setFilial(req.getFilial());
         if (req.getRole() != null)
             user.setRole(mapRole(req.getRole()));
-        if (req.getCategories() != null)
-            user.setCategories(req.getCategories());
         if (req.getNewPassword() != null && req.getNewPassword().length() >= 8) {
             if (req.getNewPassword().length() > 72)
                 throw new RuntimeException("Şifrə 72 simvoldan çox ola bilməz");
@@ -141,7 +148,8 @@ public class UserService {
                 u.getEmail(),
                 u.getFilial(),
                 mapRoleToFrontend(u.getRole()),
-                u.getCategories() != null ? u.getCategories() : new ArrayList<>(),
+                u.getDepartment() != null ? u.getDepartment().getId() : null,
+                u.getDepartment() != null ? u.getDepartment().getName() : null,
                 u.isActive()
         );
     }

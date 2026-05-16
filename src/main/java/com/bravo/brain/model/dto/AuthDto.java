@@ -26,13 +26,8 @@ public class AuthDto {
         private String role;
         private String displayName;
         private String filial;
-
-        // REGIONAL_MANAGER (Admin) ucun: hansi sobede calisir (categories[0])
-        // DEPARTMENT_HEAD (Mudir) ucun: null — cunki butun sobelere catisi var
-        private String department;
-
-        // true  => DEPARTMENT_HEAD (Mudir) — butun sobelere catisi var
-        // false => REGIONAL_MANAGER (Admin) — yalniz oz sobesine catisi var
+        private Long departmentId;       // əvvəl String department idi
+        private String departmentName;   // əlavə olundu
         private boolean allDepartments;
     }
 

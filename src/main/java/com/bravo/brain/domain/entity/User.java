@@ -37,11 +37,9 @@ public class User {
 
     private String filial;          // frontend-dən gələn filial/region
 
-    @ElementCollection
-    @CollectionTable(name = "user_categories", joinColumns = @JoinColumn(name = "user_id"))
-    @Column(name = "category")
-    @Builder.Default
-    private List<String> categories = new ArrayList<>();
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "department_id")
+    private Department department;
 
     @Column(nullable = false)
     private boolean active = true;

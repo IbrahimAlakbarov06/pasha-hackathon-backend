@@ -29,7 +29,7 @@ public class UserDto {
 
         private String role;            // "MANAGER" və ya "ADMIN" — string kimi gəlir
 
-        private List<String> categories = new ArrayList<>();
+        private Long departmentId;
     }
 
     // ── USER CAVABI — frontend UserRow tipinə uyğun ────────
@@ -41,7 +41,8 @@ public class UserDto {
         private String email;
         private String filial;
         private String role;
-        private List<String> categories;
+        private Long departmentId;
+        private String departmentName;
         private boolean active;
     }
 
@@ -54,6 +55,6 @@ public class UserDto {
         private String filial;
         private String role;
         private String newPassword;     // boş olarsa dəyişdirilmir
-        private List<String> categories = new ArrayList<>();
+        private Long departmentId;
     }
 }
