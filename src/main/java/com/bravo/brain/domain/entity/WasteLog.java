@@ -49,6 +49,9 @@ public class WasteLog {
     public enum WasteReason {
         EXPIRED,   // bitmə tarixi keçdi
         DAMAGED,   // əzildi, xarab oldu
-        REMOVED    // şöbə rəhbəri rəfdən götürdü
-    }
+        REMOVED,    // şöbə rəhbəri rəfdən götürdü
+        QUALITY,   // əlavə et
+        RECALL,    // əlavə et
+        OTHER
+        }
 }
