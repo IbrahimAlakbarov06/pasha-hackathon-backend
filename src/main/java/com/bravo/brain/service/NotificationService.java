@@ -1,6 +1,7 @@
 package com.bravo.brain.service;
 
 import com.bravo.brain.domain.entity.FcmToken;
+import com.bravo.brain.domain.entity.Product;
 import com.bravo.brain.domain.entity.ProductBatch;
 import com.bravo.brain.domain.repository.FcmTokenRepository;
 import com.bravo.brain.model.dto.ReminderDto.NotificationPayload;
@@ -15,55 +16,45 @@ public class NotificationService {
 
     private final FcmTokenRepository fcmTokenRepo;
 
-    // ── PUSH NOTIFICATION GÖNDƏR ───────────────────────────
+    // ── EXPIRY REMINDER ────────────────────────────────────
     public void sendExpiryReminder(ProductBatch batch, int daysLeft) {
         String userId = batch.getAddedByUserId();
         if (userId == null) {
-            log.warn("Batch {} üçün userId yoxdur — notification göndərilmir", batch.getBatchCode());
+            log.warn("Batch {} üçün userId yoxdur", batch.getBatchCode());
             return;
         }
-
         fcmTokenRepo.findByUserId(userId).ifPresentOrElse(
-                fcmToken -> send(fcmToken, buildPayload(batch, daysLeft)),
+                fcmToken -> sendExpiry(fcmToken, batch, daysLeft),
                 () -> log.warn("User {} üçün FCM token tapılmadı", userId)
         );
     }
 
-    private void send(FcmToken fcmToken, NotificationPayload payload) {
-        // Real implementasiyada Firebase Admin SDK istifadə olunur:
-        // FirebaseMessaging.getInstance().send(Message.builder()
-        //     .setToken(fcmToken.getToken())
-        //     .setNotification(Notification.builder()
-        //         .setTitle(payload.getTitle())
-        //         .setBody(payload.getBody())
-        //         .build())
-        //     .build());
-
-        // Mock implementasiya — hackathon üçün log ilə simulasiya
-        log.info("📱 PUSH NOTIFICATION göndərildi → {}", fcmToken.getUserId());
-        log.info("   Başlıq: {}", payload.getTitle());
-        log.info("   Mətn:   {}", payload.getBody());
-        log.info("   Batch:  {}", payload.getBatchCode());
-    }
-
-    private NotificationPayload buildPayload(ProductBatch batch, int daysLeft) {
+    private void sendExpiry(FcmToken fcmToken, ProductBatch batch, int daysLeft) {
         String title = daysLeft == 1
                 ? "⛔ SON XATIRLATMA — " + batch.getProduct().getName()
                 : "⚠️ Xatırlatma — " + batch.getProduct().getName();
-
         String body = daysLeft == 1
                 ? batch.getProduct().getName() + " bu gün rəfdən qaldırılmalıdır!"
                 : batch.getProduct().getName() + " sabah rəfdən qaldırılmalıdır!";
 
-        return new NotificationPayload(
-                title, body,
-                batch.getBatchCode(),
-                batch.getProduct().getName(),
-                daysLeft
-        );
+        log.info("📱 EXPIRY NOTIFICATION → {} | {} | {}", fcmToken.getUserId(), title, body);
+        // Firebase: FirebaseMessaging.getInstance().send(...)
     }
 
-    // ── FCM TOKEN QEYD ET / YENİLƏ ────────────────────────
+    // ── LOW STOCK ALERT ────────────────────────────────────
+    public void sendLowStockAlert(Product product, Double currentStock) {
+        String departmentName = product.getDepartment().getName();
+        String storeName = product.getDepartment().getStoreName();
+
+        log.info("📦 LOW STOCK ALERT — {} | Qalan: {} {} | Şöbə: {} | Mağaza: {}",
+                product.getName(), currentStock, product.getUnit(), departmentName, storeName);
+
+        // Həmin şöbəyə aid userləri tap və notification göndər
+        // Real implementasiyada UserRepository-dən department head-ləri tapıb FCM göndəririk
+        // Mock üçün log kifayətdir
+    }
+
+    // ── FCM TOKEN QEYD ET ──────────────────────────────────
     public void registerToken(String userId, String token) {
         FcmToken fcmToken = fcmTokenRepo.findByUserId(userId)
                 .orElse(FcmToken.builder().userId(userId).build());

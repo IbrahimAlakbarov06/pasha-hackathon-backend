@@ -1,9 +1,6 @@
 package com.bravo.brain.service;
 
-import com.bravo.brain.domain.entity.Department;
-import com.bravo.brain.domain.entity.Product;
-import com.bravo.brain.domain.entity.ProductBatch;
-import com.bravo.brain.domain.entity.Sale;
+import com.bravo.brain.domain.entity.*;
 import com.bravo.brain.domain.repository.*;
 import com.bravo.brain.model.dto.ProductDto;
 import com.bravo.brain.model.enums.BatchStatus;
@@ -23,11 +20,12 @@ public class ProductService {
     private final ProductBatchRepository batchRepo;
     private final SaleRepository saleRepo;
     private final WasteLogRepository wasteRepo;
-    private final DepartmentRepository departmentRepository
+    private final DepartmentRepository departmentRepo;
+    private final NotificationService notificationService;
 
     // ── YENİ MƏHSUL YARAT ─────────────────────────────────
     public ProductDto.ProductResponse createProduct(ProductDto.CreateRequest req) {
-        Department department = departmentRepository.findById(req.getDepartmentId())
+        Department department = departmentRepo.findById(req.getDepartmentId())
                 .orElseThrow(() -> new RuntimeException("Şöbə tapılmadı"));
 
         if (req.getBarcode() != null && productRepo.existsByBarcode(req.getBarcode()))
@@ -38,7 +36,7 @@ public class ProductService {
                 .barcode(req.getBarcode())
                 .category(req.getCategory())
                 .department(department)
-                .imageBase64(req.ge())
+                .imageBase64(req.getImageBase64())
                 .minimumStock(req.getMinimumStock())
                 .unit(req.getUnit())
                 .costPrice(req.getCostPrice())
@@ -46,7 +44,48 @@ public class ProductService {
                 .active(true)
                 .build();
 
-        return toProductResponse(productRepo.save(product));
+        Product saved = productRepo.save(product);
+
+        // Barcode yoxdursa avtomatik yarat
+        if (saved.getBarcode() == null) {
+            saved.setBarcode(generateBarcode(saved.getCategory(), saved.getId()));
+            saved = productRepo.save(saved);
+        }
+
+        return toResponse(saved);
+    }
+
+    // ── BARKODLA MƏHSUL GƏTİR — scan endpoint ─────────────
+    public ProductDto.ProductResponse getByBarcode(String barcode) {
+        Product product = productRepo.findByBarcode(barcode)
+                .orElseThrow(() -> new RuntimeException("Məhsul tapılmadı: " + barcode));
+        return toResponse(product);
+    }
+
+    // ── BARCODE LABEL — çap üçün ──────────────────────────
+    public ProductDto.BarcodeLabelResponse getBarcodeLabel(Long productId) {
+        Product product = productRepo.findById(productId)
+                .orElseThrow(() -> new RuntimeException("Məhsul tapılmadı"));
+
+        String barcodeImage = generateBarcodeImage(product.getBarcode());
+
+        return new ProductDto.BarcodeLabelResponse(
+                product.getId(),
+                product.getName(),
+                product.getBarcode(),
+                barcodeImage,     // artıq null deyil
+                product.getCategory().getLabel(),
+                product.getDepartment().getName(),
+                product.getDepartment().getStoreName(),
+                product.getSellPrice()
+        );
+    }
+
+    // ── ŞÖBƏ ÜZRƏ MƏHSULLAR ───────────────────────────────
+    public List<ProductDto.ProductResponse> getByDepartmentId(Long departmentId) {
+        return productRepo.findByDepartmentId(departmentId).stream()
+                .map(this::toResponse)
+                .collect(Collectors.toList());
     }
 
     // ── YENİ BATCH — MAL QƏBULU ───────────────────────────
@@ -74,15 +113,13 @@ public class ProductService {
         return batchCode;
     }
 
-    // ── SATIŞ — KASSIR BARKOD OXUDUR ──────────────────────
+    // ── SATIŞ ─────────────────────────────────────────────
     @Transactional
     public String processSale(ProductDto.SaleRequest req) {
         Product product = productRepo.findByBarcode(req.getBarcode())
                 .orElseThrow(() -> new RuntimeException("Məhsul tapılmadı: " + req.getBarcode()));
 
-        // FIFO — ən köhnə batch-dan çıx
-        List<ProductBatch> batches = batchRepo
-                .findActiveByProductOrderByDeliveryDate(product.getId());
+        List<ProductBatch> batches = batchRepo.findActiveByProductOrderByDeliveryDate(product.getId());
 
         if (batches.isEmpty())
             throw new RuntimeException("Stokda məhsul qalmayıb: " + product.getName());
@@ -101,15 +138,12 @@ public class ProductService {
 
             batchRepo.save(batch);
 
-            // Satış qeyd et
             Sale sale = Sale.builder()
                     .product(product)
                     .batch(batch)
                     .quantity(fromBatch)
                     .sellPrice(product.getSellPrice() != null ? product.getSellPrice() : 0.0)
                     .returned(false)
-                    .storeName(product.getStoreName())
-                    .departmentName(product.getDepartmentName())
                     .build();
             saleRepo.save(sale);
         }
@@ -117,10 +151,19 @@ public class ProductService {
         if (remaining > 0)
             throw new RuntimeException("Stokda kifayət qədər məhsul yoxdur. Çatışmayan: " + remaining);
 
+        // Low stock yoxlama
+        if (product.getMinimumStock() != null) {
+            List<ProductBatch> remaining2 = batchRepo.findActiveByProductOrderByDeliveryDate(product.getId());
+            double totalLeft = remaining2.stream().mapToDouble(ProductBatch::getQuantity).sum();
+            if (totalLeft <= product.getMinimumStock()) {
+                notificationService.sendLowStockAlert(product, totalLeft);
+            }
+        }
+
         return product.getName() + " — satış qeyd edildi";
     }
 
-    // ── MƏHSUL QAYITMASI ──────────────────────────────────
+    // ── QAYITMA ───────────────────────────────────────────
     @Transactional
     public String processReturn(ProductDto.ReturnRequest req) {
         Sale sale = saleRepo.findById(req.getSaleId())
@@ -133,7 +176,6 @@ public class ProductService {
         sale.setReturnedAt(LocalDateTime.now());
         saleRepo.save(sale);
 
-        // Batch-a geri qoy
         if (sale.getBatch() != null) {
             ProductBatch batch = sale.getBatch();
             batch.setQuantity(batch.getQuantity() + sale.getQuantity());
@@ -148,15 +190,11 @@ public class ProductService {
     // ── STOK GÖRÜNÜŞÜ ─────────────────────────────────────
     public List<ProductDto.StockResponse> getStock(String storeName, String departmentName) {
         List<Product> products = productRepo
-                .findByStoreNameAndDepartmentName(storeName, departmentName);
+                .findByDepartment_StoreNameAndDepartment_Name(storeName, departmentName);
 
         return products.stream().map(p -> {
-            List<ProductBatch> batches = batchRepo
-                    .findActiveByProductOrderByDeliveryDate(p.getId());
-
-            double totalStock = batches.stream()
-                    .mapToDouble(ProductBatch::getQuantity).sum();
-
+            List<ProductBatch> batches = batchRepo.findActiveByProductOrderByDeliveryDate(p.getId());
+            double totalStock = batches.stream().mapToDouble(ProductBatch::getQuantity).sum();
             var nearestRemoval = batches.stream()
                     .map(ProductBatch::getRemovalDate)
                     .min(java.time.LocalDate::compareTo)
@@ -164,14 +202,34 @@ public class ProductService {
 
             return new ProductDto.StockResponse(
                     p.getId(), p.getName(), p.getBarcode(),
-                    p.getCategory().getLabel(), p.getDepartmentName(),
+                    p.getCategory().getLabel(),
+                    p.getDepartment().getId(),
+                    p.getDepartment().getName(),
+                    p.getDepartment().getStoreName(),
                     totalStock, batches.size(), nearestRemoval
             );
         }).collect(Collectors.toList());
     }
 
-    // ── BATCH CODE GENERASIYA ─────────────────────────────
-    // Format: FG-{productId}-{tarix}-{random}
+    // ── BARCODE GENERATE ──────────────────────────────────
+    // Format: BRV-{categoryCode}-{productId}-{random4}
+    private String generateBarcode(com.bravo.brain.model.enums.ProductCategory category, Long productId) {
+        String categoryCode = switch (category) {
+            case FRUIT         -> "FRT";
+            case VEGETABLE     -> "VEG";
+            case MEAT          -> "MET";
+            case DAIRY         -> "DRY";
+            case BREAD         -> "BRD";
+            case EGG           -> "EGG";
+            case CONFECTIONERY -> "CNF";
+            case BEVERAGE      -> "BEV";
+            case OTHER         -> "OTH";
+        };
+        String random = String.format("%04d", new Random().nextInt(9000) + 1000);
+        return String.format("BRV-%s-%03d-%s", categoryCode, productId, random);
+    }
+
+    // ── BATCH CODE GENERATE ───────────────────────────────
     private String generateBatchCode(Long productId) {
         String date = java.time.LocalDate.now()
                 .format(java.time.format.DateTimeFormatter.ofPattern("MMdd"));
@@ -179,14 +237,42 @@ public class ProductService {
         return String.format("FG-%d-%s-%s", productId, date, rand);
     }
 
+    private String generateBarcodeImage(String barcodeText) {
+        try {
+            com.google.zxing.Writer writer = new com.google.zxing.oned.Code128Writer();
+            com.google.zxing.common.BitMatrix bitMatrix =
+                    writer.encode(barcodeText, com.google.zxing.BarcodeFormat.CODE_128, 400, 100);
+
+            java.awt.image.BufferedImage image =
+                    com.google.zxing.client.j2se.MatrixToImageWriter.toBufferedImage(bitMatrix);
+
+            java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+            javax.imageio.ImageIO.write(image, "PNG", baos);
+
+            return "data:image/png;base64," +
+                    java.util.Base64.getEncoder().encodeToString(baos.toByteArray());
+        } catch (Exception e) {
+            throw new RuntimeException("Barcode şəkli yaradılmadı: " + e.getMessage());
+        }
+    }
+
     // ── ENTITY → DTO ──────────────────────────────────────
-    private ProductDto.ProductResponse toProductResponse(Product p) {
+    private ProductDto.ProductResponse toResponse(Product p) {
         return new ProductDto.ProductResponse(
-                p.getId(), p.getName(), p.getBarcode(),
-                p.getCategory().getLabel(), p.getDepartmentName(),
-                p.getStoreName(), p.getUnit(),
-                p.getCostPrice(), p.getSellPrice(),
-                p.isActive(), p.getCreatedAt()
+                p.getId(),
+                p.getName(),
+                p.getBarcode(),
+                p.getCategory().getLabel(),
+                p.getDepartment().getId(),
+                p.getDepartment().getName(),
+                p.getDepartment().getStoreName(),
+                p.getImageBase64(),
+                p.getMinimumStock(),
+                p.getUnit(),
+                p.getCostPrice(),
+                p.getSellPrice(),
+                p.isActive(),
+                p.getCreatedAt()
         );
     }
 }

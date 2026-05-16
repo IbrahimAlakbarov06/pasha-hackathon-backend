@@ -9,23 +9,24 @@ import java.util.List;
 
 public interface WasteLogRepository extends JpaRepository<WasteLog, Long> {
 
-    // Şöbə üzrə ümumi ziyan
     @Query("SELECT COALESCE(SUM(w.totalLoss), 0) FROM WasteLog w " +
-            "WHERE w.departmentName = :dept AND w.storeName = :store " +
+            "WHERE w.product.department.name = :dept AND w.product.department.storeName = :store " +
             "AND w.wasteDate BETWEEN :from AND :to")
     Double getTotalWaste(@Param("dept") String dept, @Param("store") String store,
                          @Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
 
-    // Bütün mağaza üzrə ziyan
     @Query("SELECT COALESCE(SUM(w.totalLoss), 0) FROM WasteLog w " +
-            "WHERE w.storeName = :store AND w.wasteDate BETWEEN :from AND :to")
+            "WHERE w.product.department.storeName = :store AND w.wasteDate BETWEEN :from AND :to")
     Double getTotalWasteByStore(@Param("store") String store,
-                                @Param("from") LocalDateTime from,
-                                @Param("to") LocalDateTime to);
+                                @Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
 
-    List<WasteLog> findByStoreNameAndWasteDateBetween(
-            String storeName, LocalDateTime from, LocalDateTime to);
+    @Query("SELECT w FROM WasteLog w WHERE w.product.department.storeName = :store " +
+            "AND w.wasteDate BETWEEN :from AND :to")
+    List<WasteLog> findByStoreAndDateBetween(@Param("store") String store,
+                                             @Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
 
-    List<WasteLog> findByDepartmentNameAndWasteDateBetween(
-            String departmentName, LocalDateTime from, LocalDateTime to);
+    @Query("SELECT w FROM WasteLog w WHERE w.product.department.name = :dept " +
+            "AND w.wasteDate BETWEEN :from AND :to")
+    List<WasteLog> findByDepartmentAndDateBetween(@Param("dept") String dept,
+                                                  @Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
 }

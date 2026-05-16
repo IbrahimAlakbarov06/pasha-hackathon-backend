@@ -11,28 +11,18 @@ import java.util.Optional;
 
 public interface ProductBatchRepository extends JpaRepository<ProductBatch, Long> {
 
-    // FIFO üçün — ən köhnə aktiv batch
     @Query("SELECT b FROM ProductBatch b WHERE b.product.id = :productId " +
-            "AND b.status = 'ACTIVE' AND b.quantity > 0 " +
-            "ORDER BY b.deliveryDate ASC")
+            "AND b.status = 'ACTIVE' AND b.quantity > 0 ORDER BY b.deliveryDate ASC")
     List<ProductBatch> findActiveByProductOrderByDeliveryDate(@Param("productId") Long productId);
 
-    // Reminder üçün — bu gün + N gün olan batchlər
-    List<ProductBatch> findByRemovalDateAndStatusAndNotified2DayFalse(
-            LocalDate removalDate, BatchStatus status);
+    List<ProductBatch> findByRemovalDateAndStatusAndNotified2DayFalse(LocalDate removalDate, BatchStatus status);
+    List<ProductBatch> findByRemovalDateAndStatusAndNotified1DayFalse(LocalDate removalDate, BatchStatus status);
 
-    List<ProductBatch> findByRemovalDateAndStatusAndNotified1DayFalse(
-            LocalDate removalDate, BatchStatus status);
+    @Query("SELECT b FROM ProductBatch b WHERE b.product.department.name = :dept " +
+            "AND b.product.department.storeName = :store AND b.status = 'ACTIVE'")
+    List<ProductBatch> findActiveByDepartmentAndStore(@Param("dept") String dept, @Param("store") String store);
 
-    // Şöbə üzrə aktiv batchlər
-    @Query("SELECT b FROM ProductBatch b WHERE b.product.departmentName = :dept " +
-            "AND b.product.storeName = :store AND b.status = 'ACTIVE'")
-    List<ProductBatch> findActiveByDepartmentAndStore(
-            @Param("dept") String dept, @Param("store") String store);
-
-    // Bitmə tarixinə görə risk axtarışı
-    @Query("SELECT b FROM ProductBatch b WHERE b.removalDate <= :date " +
-            "AND b.status = 'ACTIVE' AND b.quantity > 0")
+    @Query("SELECT b FROM ProductBatch b WHERE b.removalDate <= :date AND b.status = 'ACTIVE' AND b.quantity > 0")
     List<ProductBatch> findAtRisk(@Param("date") LocalDate date);
 
     Optional<ProductBatch> findByBatchCode(String batchCode);

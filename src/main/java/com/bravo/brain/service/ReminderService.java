@@ -25,19 +25,19 @@ public class ReminderService {
     private final WasteLogRepository wasteRepo;
     private final NotificationService notificationService;
 
-    // ── AKTİV RİMINDERLƏR — şöbə rəhbəri görür ───────────
+    // ── AKTİV RİMINDERLƏR ─────────────────────────────────
     public List<ReminderResponse> getActiveReminders(String storeName, String departmentName) {
         LocalDate warningDate = LocalDate.now().plusDays(2);
 
         return batchRepo.findAtRisk(warningDate).stream()
-                .filter(b -> b.getProduct().getStoreName().equals(storeName))
+                .filter(b -> b.getProduct().getDepartment().getStoreName().equals(storeName))
                 .filter(b -> departmentName == null ||
-                        b.getProduct().getDepartmentName().equals(departmentName))
+                        b.getProduct().getDepartment().getName().equals(departmentName))
                 .map(this::toReminderResponse)
                 .collect(Collectors.toList());
     }
 
-    // ── HƏLL EDİLDİ — şöbə rəhbəri rəfdən götürdü ────────
+    // ── HƏLL EDİLDİ ───────────────────────────────────────
     @Transactional
     public ResolveResponse resolveBatch(Long batchId, String resolvedByUserId) {
         ProductBatch batch = batchRepo.findById(batchId)
@@ -46,7 +46,6 @@ public class ReminderService {
         if (batch.getStatus() != BatchStatus.ACTIVE)
             throw new RuntimeException("Bu batch artıq aktiv deyil");
 
-        // Qalan miqdarı waste kimi qeyd et
         if (batch.getQuantity() > 0) {
             WasteLog wasteLog = WasteLog.builder()
                     .product(batch.getProduct())
@@ -55,8 +54,6 @@ public class ReminderService {
                     .costPrice(batch.getProduct().getCostPrice() != null
                             ? batch.getProduct().getCostPrice() : 0.0)
                     .reason(WasteLog.WasteReason.REMOVED)
-                    .storeName(batch.getProduct().getStoreName())
-                    .departmentName(batch.getProduct().getDepartmentName())
                     .resolvedByUserId(resolvedByUserId)
                     .build();
             wasteRepo.save(wasteLog);
@@ -66,8 +63,6 @@ public class ReminderService {
         batch.setQuantity(0.0);
         batchRepo.save(batch);
 
-        log.info("Batch {} rəfdən götürüldü — {}", batch.getBatchCode(), resolvedByUserId);
-
         return new ResolveResponse(
                 batch.getBatchCode(),
                 batch.getProduct().getName(),
@@ -76,8 +71,7 @@ public class ReminderService {
         );
     }
 
-    // ── SCHEDULER TƏRƏFINDƏN ÇAĞIRILIR ────────────────────
-    // 2 gün qalınca notification göndər
+    // ── 2 GÜNLÜK REMINDER ─────────────────────────────────
     @Transactional
     public void processReminders2Day() {
         LocalDate targetDate = LocalDate.now().plusDays(2);
@@ -88,12 +82,11 @@ public class ReminderService {
             notificationService.sendExpiryReminder(batch, 2);
             batch.setNotified2Day(true);
             batchRepo.save(batch);
-            log.info("2 günlük reminder göndərildi: {}", batch.getBatchCode());
         }
-        log.info("2 günlük reminder batch: {} məhsul", batches.size());
+        log.info("2 günlük reminder: {} məhsul", batches.size());
     }
 
-    // 1 gün qalınca son xatırlatma
+    // ── 1 GÜNLÜK REMINDER ─────────────────────────────────
     @Transactional
     public void processReminders1Day() {
         LocalDate targetDate = LocalDate.now().plusDays(1);
@@ -104,27 +97,24 @@ public class ReminderService {
             notificationService.sendExpiryReminder(batch, 1);
             batch.setNotified1Day(true);
             batchRepo.save(batch);
-            log.info("1 günlük son reminder göndərildi: {}", batch.getBatchCode());
         }
-        log.info("1 günlük reminder batch: {} məhsul", batches.size());
+        log.info("1 günlük reminder: {} məhsul", batches.size());
     }
 
     // ── ENTITY → DTO ──────────────────────────────────────
     private ReminderResponse toReminderResponse(ProductBatch batch) {
         int daysLeft = (int) ChronoUnit.DAYS.between(LocalDate.now(), batch.getRemovalDate());
-        String urgency = daysLeft <= 1 ? "CRITICAL" : "WARNING";
-
         return new ReminderResponse(
                 batch.getId(),
                 batch.getBatchCode(),
                 batch.getProduct().getName(),
-                batch.getProduct().getDepartmentName(),
-                batch.getProduct().getStoreName(),
+                batch.getProduct().getDepartment().getName(),
+                batch.getProduct().getDepartment().getStoreName(),
                 batch.getQuantity(),
                 batch.getDeliveryDate(),
                 batch.getRemovalDate(),
                 daysLeft,
-                urgency,
+                daysLeft <= 1 ? "CRITICAL" : "WARNING",
                 batch.isNotified2Day(),
                 batch.isNotified1Day()
         );

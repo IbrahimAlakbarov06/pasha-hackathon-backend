@@ -1,4 +1,5 @@
 package com.bravo.brain.controller;
+
 import com.bravo.brain.model.dto.ProductDto;
 import com.bravo.brain.service.ProductService;
 import jakarta.validation.Valid;
@@ -14,35 +15,53 @@ public class ProductController {
 
     private final ProductService productService;
 
-    // POST /api/products — yeni məhsul yarat
+    // POST /api/products
     @PostMapping
-    public ResponseEntity<ProductDto.ProductResponse> createProduct(@Valid @RequestBody ProductDto.CreateRequest req) {
+    public ResponseEntity<ProductDto.ProductResponse> createProduct(
+            @Valid @RequestBody ProductDto.CreateRequest req) {
         return ResponseEntity.ok(productService.createProduct(req));
     }
 
-    // POST /api/products/batch — mal qəbulu (şöbə rəhbəri)
+    // POST /api/products/batch
     @PostMapping("/batch")
-    public ResponseEntity<String> addBatch(@Valid @RequestBody ProductDto.AddBatchRequest req) {
+    public ResponseEntity<String> addBatch(
+            @Valid @RequestBody ProductDto.AddBatchRequest req) {
         return ResponseEntity.ok(productService.addBatch(req));
     }
 
-    // POST /api/products/sale — kassir satış
+    // POST /api/products/sale
     @PostMapping("/sale")
-    public ResponseEntity<String> processSale(@Valid @RequestBody ProductDto.SaleRequest req) {
+    public ResponseEntity<String> processSale(
+            @Valid @RequestBody ProductDto.SaleRequest req) {
         return ResponseEntity.ok(productService.processSale(req));
     }
 
-    // POST /api/products/return — məhsul qaytarılması
+    // POST /api/products/return
     @PostMapping("/return")
-    public ResponseEntity<String> processReturn(@Valid @RequestBody ProductDto.ReturnRequest req) {
+    public ResponseEntity<String> processReturn(
+            @Valid @RequestBody ProductDto.ReturnRequest req) {
         return ResponseEntity.ok(productService.processReturn(req));
     }
 
-    // GET /api/products/stock?store=X&department=Y — stok görünüşü
+    // GET /api/products/stock?store=X&department=Y
     @GetMapping("/stock")
     public ResponseEntity<List<ProductDto.StockResponse>> getStock(
             @RequestParam String store,
             @RequestParam String department) {
         return ResponseEntity.ok(productService.getStock(store, department));
+    }
+
+    // GET /api/products/barcode/{barcode} — scan endpoint
+    @GetMapping("/barcode/{barcode}")
+    public ResponseEntity<ProductDto.ProductResponse> getByBarcode(
+            @PathVariable String barcode) {
+        return ResponseEntity.ok(productService.getByBarcode(barcode));
+    }
+
+    // GET /api/products/{id}/barcode-label — çap üçün
+    @GetMapping("/{id}/barcode-label")
+    public ResponseEntity<ProductDto.BarcodeLabelResponse> getBarcodeLabel(
+            @PathVariable Long id) {
+        return ResponseEntity.ok(productService.getBarcodeLabel(id));
     }
 }
