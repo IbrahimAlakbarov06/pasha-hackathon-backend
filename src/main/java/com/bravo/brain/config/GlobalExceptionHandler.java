@@ -1,4 +1,4 @@
-package com.freshguard.config;
+package com.bravo.brain.config;
 
 import org.springframework.http.*;
 import org.springframework.web.bind.MethodArgumentNotValidException;
