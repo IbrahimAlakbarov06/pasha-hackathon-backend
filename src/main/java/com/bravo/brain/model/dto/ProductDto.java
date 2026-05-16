@@ -19,11 +19,10 @@ public class ProductDto {
         @NotNull(message = "Kateqoriya seçilməlidir")
         private ProductCategory category;
 
-        @NotBlank(message = "Şöbə adı boş ola bilməz")
-        private String departmentName;
+        @NotNull(message = "Şöbə seçilməlidir")
+        private Long departmentId;
 
-        @NotBlank(message = "Mağaza adı boş ola bilməz")
-        private String storeName;
+        private Double minimumStock;  // isteğe bağlı, default null
 
         private String unit;            // "ədəd", "kq", "litr"
         private Double costPrice;
@@ -86,8 +85,11 @@ public class ProductDto {
         private String name;
         private String barcode;
         private String category;
-        private String departmentName;
-        private String storeName;
+        private Double minimumStock;  // isteğe bağlı, default null
+        private Long departmentId;
+        private String departmentName;  // department.getName()-dən doldurulur
+        private String storeName;       // department.getStoreName()-dən doldurulur
+        private String imageBase64;
         private String unit;
         private Double costPrice;
         private Double sellPrice;

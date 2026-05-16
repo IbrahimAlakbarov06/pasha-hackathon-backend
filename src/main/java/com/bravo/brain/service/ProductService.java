@@ -1,12 +1,10 @@
 package com.bravo.brain.service;
 
+import com.bravo.brain.domain.entity.Department;
 import com.bravo.brain.domain.entity.Product;
 import com.bravo.brain.domain.entity.ProductBatch;
 import com.bravo.brain.domain.entity.Sale;
-import com.bravo.brain.domain.repository.ProductBatchRepository;
-import com.bravo.brain.domain.repository.ProductRepository;
-import com.bravo.brain.domain.repository.SaleRepository;
-import com.bravo.brain.domain.repository.WasteLogRepository;
+import com.bravo.brain.domain.repository.*;
 import com.bravo.brain.model.dto.ProductDto;
 import com.bravo.brain.model.enums.BatchStatus;
 import lombok.RequiredArgsConstructor;
@@ -25,9 +23,13 @@ public class ProductService {
     private final ProductBatchRepository batchRepo;
     private final SaleRepository saleRepo;
     private final WasteLogRepository wasteRepo;
+    private final DepartmentRepository departmentRepository
 
     // ── YENİ MƏHSUL YARAT ─────────────────────────────────
     public ProductDto.ProductResponse createProduct(ProductDto.CreateRequest req) {
+        Department department = departmentRepository.findById(req.getDepartmentId())
+                .orElseThrow(() -> new RuntimeException("Şöbə tapılmadı"));
+
         if (req.getBarcode() != null && productRepo.existsByBarcode(req.getBarcode()))
             throw new RuntimeException("Bu barkod artıq mövcuddur");
 
@@ -35,8 +37,9 @@ public class ProductService {
                 .name(req.getName())
                 .barcode(req.getBarcode())
                 .category(req.getCategory())
-                .departmentName(req.getDepartmentName())
-                .storeName(req.getStoreName())
+                .department(department)
+                .imageBase64(req.ge())
+                .minimumStock(req.getMinimumStock())
                 .unit(req.getUnit())
                 .costPrice(req.getCostPrice())
                 .sellPrice(req.getSellPrice())

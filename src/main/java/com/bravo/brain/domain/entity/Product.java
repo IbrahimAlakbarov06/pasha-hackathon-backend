@@ -15,7 +15,7 @@ public class Product {
     private Long id;
 
     @Column(nullable = false)
-    private String name;            // məhsul adı
+    private String name;            // məhsul ad
 
     @Column(unique = true)
     private String barcode;         // barkod (ola bilər null — çəkili məhsullar)
@@ -24,11 +24,14 @@ public class Product {
     @Column(nullable = false)
     private ProductCategory category;
 
-    @Column(nullable = false)
-    private String departmentName;  // aid olduğu şöbə
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "department_id", nullable = false)
+    private Department department;
 
-    @Column(nullable = false)
-    private String storeName;       // aid olduğu mağaza
+    @Column(columnDefinition = "TEXT")
+    private String imageBase64;
+
+    private Double minimumStock;
 
     private String unit;            // "ədəd", "kq", "litr"
 
