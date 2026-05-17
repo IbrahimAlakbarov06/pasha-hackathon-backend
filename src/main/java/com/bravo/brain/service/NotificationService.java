@@ -4,7 +4,7 @@ import com.bravo.brain.domain.entity.FcmToken;
 import com.bravo.brain.domain.entity.Product;
 import com.bravo.brain.domain.entity.ProductBatch;
 import com.bravo.brain.domain.repository.FcmTokenRepository;
-import com.bravo.brain.model.dto.ReminderDto.NotificationPayload;
+import com.google.firebase.messaging.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -24,34 +24,25 @@ public class NotificationService {
             return;
         }
         fcmTokenRepo.findByUserId(userId).ifPresentOrElse(
-                fcmToken -> sendExpiry(fcmToken, batch, daysLeft),
+                fcmToken -> sendFcmNotification(
+                        fcmToken.getToken(),
+                        daysLeft == 1
+                                ? "⛔ Son Xatırlatma — " + batch.getProduct().getName()
+                                : "⚠️ Xatırlatma — " + batch.getProduct().getName(),
+                        daysLeft == 1
+                                ? batch.getProduct().getName() + " bu gün rəfdən qaldırılmalıdır!"
+                                : batch.getProduct().getName() + " sabah rəfdən qaldırılmalıdır!",
+                        batch.getBatchCode()
+                ),
                 () -> log.warn("User {} üçün FCM token tapılmadı", userId)
         );
     }
 
-    private void sendExpiry(FcmToken fcmToken, ProductBatch batch, int daysLeft) {
-        String title = daysLeft == 1
-                ? "⛔ SON XATIRLATMA — " + batch.getProduct().getName()
-                : "⚠️ Xatırlatma — " + batch.getProduct().getName();
-        String body = daysLeft == 1
-                ? batch.getProduct().getName() + " bu gün rəfdən qaldırılmalıdır!"
-                : batch.getProduct().getName() + " sabah rəfdən qaldırılmalıdır!";
-
-        log.info("📱 EXPIRY NOTIFICATION → {} | {} | {}", fcmToken.getUserId(), title, body);
-        // Firebase: FirebaseMessaging.getInstance().send(...)
-    }
-
     // ── LOW STOCK ALERT ────────────────────────────────────
     public void sendLowStockAlert(Product product, Double currentStock) {
-        String departmentName = product.getDepartment().getName();
-        String storeName = product.getDepartment().getStoreName();
-
-        log.info("📦 LOW STOCK ALERT — {} | Qalan: {} {} | Şöbə: {} | Mağaza: {}",
-                product.getName(), currentStock, product.getUnit(), departmentName, storeName);
-
-        // Həmin şöbəyə aid userləri tap və notification göndər
-        // Real implementasiyada UserRepository-dən department head-ləri tapıb FCM göndəririk
-        // Mock üçün log kifayətdir
+        log.info("📦 LOW STOCK — {} | Qalan: {}", product.getName(), currentStock);
+        // Department head-in FCM token-ini tap və göndər
+        // UserRepository-dən department-a aid useri tapıb göndərmək olar
     }
 
     // ── FCM TOKEN QEYD ET ──────────────────────────────────
@@ -61,5 +52,34 @@ public class NotificationService {
         fcmToken.setToken(token);
         fcmTokenRepo.save(fcmToken);
         log.info("FCM token qeyd edildi: {}", userId);
+    }
+
+    // ── REAL FCM GÖNDƏR ────────────────────────────────────
+    private void sendFcmNotification(String token, String title,
+                                     String body, String batchCode) {
+        try {
+            Message message = Message.builder()
+                    .setToken(token)
+                    .setNotification(Notification.builder()
+                            .setTitle(title)
+                            .setBody(body)
+                            .build())
+                    .putData("batchCode", batchCode)
+                    .putData("type", "EXPIRY_REMINDER")
+                    .build();
+
+            String response = FirebaseMessaging.getInstance().send(message);
+            log.info("FCM göndərildi: {} → {}", token, response);
+
+        } catch (FirebaseMessagingException e) {
+            log.error("FCM xətası: {}", e.getMessage());
+
+            // Token etibarsızdırsa DB-dən sil
+            if (e.getMessagingErrorCode() == MessagingErrorCode.UNREGISTERED ||
+                    e.getMessagingErrorCode() == MessagingErrorCode.INVALID_ARGUMENT) {
+                fcmTokenRepo.findByUserId(token).ifPresent(fcmTokenRepo::delete);
+                log.warn("Etibarsız FCM token silindi");
+            }
+        }
     }
 }
